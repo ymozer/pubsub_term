@@ -1,4 +1,5 @@
 import asyncio
+from asyncio import Future 
 import redis.asyncio as redis
 import time
 import pandas as pd
@@ -27,6 +28,14 @@ def csv_read():
 async def publisherAgent(data, node, delay):
 	r = redis.Redis(host='localhost', port=6379, db=0)
 	print(f"{node} ping successful: {await r.ping()}")
+	if type(data) == str and  data == "STOP":
+		count=0
+		while count<100:
+			print(f"[{time.strftime('%X')}][{count}]: Sending stop signal for {node}. ")
+			await r.publish(node, data) # send stop signal 
+			count+=1
+		await r.close()
+
 	for i in data:
 		# publish data to specified node
 		await r.publish(node, i)
@@ -40,11 +49,16 @@ async def main(data,delay):
 	await asyncio.gather( publisherAgent(data[0], "node-1", delay),
 												publisherAgent(data[1], "node-2", delay),
 												publisherAgent(data[2], "node-3", delay)
-	)#.add_done_callback(print(f"finished at {time.strftime('%X')}")	)
+	)
+	print(f"finished at {time.strftime('%X')}")
+	await publisherAgent(("STOP"), "node-1", delay)
+	await publisherAgent(("STOP"), "node-2", delay)
+	await publisherAgent(("STOP"), "node-3", delay)
+
 
 if __name__ == "__main__":
 	# dataset parse
 	data = csv_read()
 	# delay in seconds
-	delay = 1
+	delay = 0.001
 	asyncio.run(main(data,delay))
