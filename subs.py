@@ -36,8 +36,8 @@ async def main():
 	'''Compose subscribers for async data gathering'''
 	print(f"started at {time.strftime('%X')}")
 	await asyncio.gather(subAgent("node-1_ActualPower"),
-											 subAgent("node-2_WindSpeed"),
-											 subAgent("node-3_WindDir"))
+						subAgent("node-2_WindSpeed"),
+						subAgent("node-3_WindDir"))
 	print(f"finished at {time.strftime('%X')}")
 
 if __name__ == "__main__":

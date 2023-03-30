@@ -46,9 +46,11 @@ async def publisherAgent(data, node, delay):
 
 async def main(data,delay):
 	print(f"started at {time.strftime('%X')}")
-	await asyncio.gather( publisherAgent(data[0], "node-1", delay),
-												publisherAgent(data[1], "node-2", delay),
-												publisherAgent(data[2], "node-3", delay)
+	# TODO : Don't publish just one column, publish all columns for row
+	# Need to compare this data if they have same date
+	await asyncio.gather(	publisherAgent(data[0], "node-1", delay),
+							publisherAgent(data[1], "node-2", delay),
+							publisherAgent(data[2], "node-3", delay)
 	)
 	print(f"finished at {time.strftime('%X')}")
 	await publisherAgent(("STOP"), "node-1", delay)
@@ -60,5 +62,5 @@ if __name__ == "__main__":
 	# dataset parse
 	data = csv_read()
 	# delay in seconds
-	delay = 0.001
+	delay = 1
 	asyncio.run(main(data,delay))
