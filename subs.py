@@ -2,31 +2,40 @@ import asyncio
 import aiofiles
 import redis.asyncio as redis
 import time
-import  string
 
-async def pubsub_test(node):
-    split_str=node.split('_')
-    r = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
-    print(f"Ping successful: {r.ping()}")
-    async with aiofiles.open(f"{node}.txt",'a') as f:
-        async with r.pubsub() as ps:
-            await ps.subscribe(split_str[0])
-            #ps.subscribe("user-*")
-            print(f"subscribed to {split_str[0]}")
 
-            while True:
-                message = await ps.get_message(ignore_subscribe_messages=True)
-                if message is not None:
-                    stream = (message['channel'], message['data'])
-                    print(stream)
-                    await f.writelines(f"{stream[1]}\n")
+async def subAgent(node: str):
+	split_str = node.split('_')  # ('NODE_NAME','VALUE_NAME')
+	r = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
+	print(f"{split_str[0]} ping successful: {r.ping()}")
+	async with r.pubsub() as ps:
+		await ps.subscribe(split_str[0])
+		print(f"subscribed to {split_str[0]}")
+		while True:
+			# Save stream of data to txt file
+			# I want to see update of file realtime in vscode
+			# so i open and close each loop (even though not performant)
+			async with aiofiles.open(f"{node}.txt", 'a') as f:
+				message = await ps.get_message(ignore_subscribe_messages=True,timeout=5)
+				if message is not None:
+					stream = (message['channel'], message['data'])
+					print(stream)
+					# Write values to files per row
+					await f.writelines(f"{stream[1]}\n")
+					await f.close()
+				else:
+					print("Message empty. Check connection with publisher.")
+			time.sleep(0.001)  # be nice to the system :)
+
+
 
 async def main():
-    print(f"started at {time.strftime('%X')}")
-    await asyncio.gather(pubsub_test("node-1_ActualPower"),
-                         pubsub_test("node-2_WindSpeed"),
-                         pubsub_test("node-3_WindDir"))
-    print(f"finished at {time.strftime('%X')}")
+	'''Compose subscribers for async data gathering'''
+	print(f"started at {time.strftime('%X')}")
+	await asyncio.gather(subAgent("node-1_ActualPower"),
+											 subAgent("node-2_WindSpeed"),
+											 subAgent("node-3_WindDir"))
+	print(f"finished at {time.strftime('%X')}")
 
 if __name__ == "__main__":
-    asyncio.run(main())
+	asyncio.run(main())
