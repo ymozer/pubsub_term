@@ -1,12 +1,13 @@
-version: "3.2"
+version: '3.8'
 services:
-  redis:
-    image: "redis:alpine"
-    command: redis-server
+  cache:
+    image: redis:6.2-alpine
+    restart: always
     ports:
-      - "6379:6379"
-    volumes:
-      - $PWD/redis-data:/var/lib/redis
-      - $PWD/redis.conf:/usr/local/etc/redis/redis.conf
-    environment:
-      - REDIS_REPLICATION_MODE=master
+      - '6379:6379'
+    command: redis-server --save 20 1 --loglevel warning --requirepass eYVX7EwVmmxKPCDmwMtyKVge8oLd2t81
+    volumes: 
+      - cache:/data
+volumes:
+  cache:
+    driver: local
