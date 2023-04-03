@@ -1,4 +1,4 @@
-# Pub/Sub Term Project Artificial Inteligance ADÜ
+# Pub/Sub Term Project Artificial Intelligence ADÜ
 ## Yusuf Metin ÖZER 221805073
 ### Installation
 
