@@ -58,8 +58,8 @@ async def main(data,delay):
 	# TODO : Don't publish just one column, publish all columns for row
 	# Need to compare this data if they have same date
 	await asyncio.gather(	publisherAgent(data[0], "node-1", delay),
-							publisherAgent(data[1], "node-2", delay),
-							publisherAgent(data[2], "node-3", delay)
+												publisherAgent(data[1], "node-2", delay),
+												publisherAgent(data[2], "node-3", delay)
 	)
 	print(f"finished at {time.strftime('%X')}")
 	await publisherAgent(("STOP"), "node-1", delay)
