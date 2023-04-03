@@ -7,27 +7,34 @@ import numpy as np
 
 def csv_read():
 	df = pd.read_csv("T1.csv")
-	# Drop the specified column because homework doesn't mention it 
-	df = df.drop(columns=["Theoretical_Power_Curve (KWh)"])
 	# Renaming columns for convenience
-	df.rename(columns={'LV ActivePower (kW)': 'Actualpower'}, inplace=True)
+	df.rename(columns={'Date/Time': 'DateTime'}, inplace=True)
+	df.rename(columns={'LV ActivePower (kW)': 'ActivePower'}, inplace=True)
 	df.rename(columns={'Wind Speed (m/s)': 'Windspeed'}, inplace=True)
 	df.rename(columns={'Wind Direction (°)': 'Winddir'}, inplace=True)
-	df.rename(columns={'Date/Time': 'DateTime'}, inplace=True)
+	df.rename(columns={'Theoretical_Power_Curve (KWh)': 'TheoreticalPC'}, inplace=True)
+	
+	# Create seperate dataframes for sendinfg to different subs
+	# Each consist the data/time column
+	df_ActivePower 		= df.drop(columns=["Windspeed","Winddir","TheoreticalPC"])
+	df_WindSpeed 			= df.drop(columns=["ActivePower","Winddir","TheoreticalPC"])
+	df_WindDir 				= df.drop(columns=["Windspeed","ActivePower","TheoreticalPC"])
+	df_TheoreticalPC	= df.drop(columns=["Windspeed","Winddir","ActivePower"])
 
-	# Return data composed as Tuple
-	data = np.array([
-		df['Actualpower'].to_numpy(),
-		df['Windspeed'].to_numpy(),
-		df['Winddir'].to_numpy(),
-		df['DateTime'].to_numpy()
-	])
+	# Return seperate dataframes as tuples
+	data = [
+		df_ActivePower,
+		df_WindSpeed,
+		df_WindDir,
+		df_TheoreticalPC
+	]
 	return data
 
-
-async def publisherAgent(data, node, delay):
+async def publisherAgent(data:pd.DataFrame, node:str, delay:int):
+	# Connection to redis machine
 	r = redis.Redis(host='localhost', port=6379, db=0)
 	print(f"{node} ping successful: {await r.ping()}")
+	# Sending 'STOP' signal to subs if file ends
 	if type(data) == str and  data == "STOP":
 		count=0
 		while count<100:
@@ -36,9 +43,11 @@ async def publisherAgent(data, node, delay):
 			count+=1
 		await r.close()
 
-	for i in data:
-		# publish data to specified node
-		await r.publish(node, i)
+	# Data publishing
+	for index, row in data.iterrows():
+		to_be_published_str = f"{row[0]}\n{row[1]}"
+		# publish dataframe to specified node
+		await r.publish(node, to_be_published_str)
 		# Sleep async for specified seconds
 		await asyncio.sleep(delay)
 	await r.close()
