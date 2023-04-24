@@ -4,3 +4,6 @@
 /Scripts
 node*
 *.cfg
+**.pdf
+**.csv
+!merged.csv
