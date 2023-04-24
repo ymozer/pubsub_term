@@ -28,7 +28,7 @@ class Subscriber:
 			await ps.subscribe(split_str[0])
 			# print(f"[{time.strftime('%X')}]: Subscribed to {split_str[0]}")
 			while True:
-				message = await ps.get_message(ignore_subscribe_messages=True, timeout=7)
+				message = await ps.get_message(ignore_subscribe_messages=True, timeout=3)
 				# if message NOT empty
 				if message is not None:
 					# If incoming message, break loop and finish agent
@@ -40,6 +40,7 @@ class Subscriber:
 					time.sleep(0.001)  # be nice to the system :)
 					return stream, hosts
 				else:
+					#print(f"[{time.strftime('%X')}-{split_str[0]}]: Cannot communicate with Publisher!")
 					continue
 
 
@@ -63,11 +64,11 @@ class Subscriber:
 			node_2_value = self.parse(results[1][0])
 			node_3_value = self.parse(results[2][0])
 
+			mismatch_count=0
+			filename = "combined.csv"
 			# Check if all nodes have same date
 			if node_1_value[0] == node_2_value[0] == node_3_value[0]:
 				print(f"[{time.strftime('%X')}] Dates are same:\nnode-1: {node_1_value[1]}\tnode-2: {node_2_value[1]}\tnode-3: {node_3_value[1]}\n")
-				# Write to file
-				filename = "combined.txt"
 
 				# Check if file exist because we want to write to first row
 				# as column names (headers)
@@ -82,8 +83,16 @@ class Subscriber:
 				'''
 				async with aiofiles.open(filename, 'a+', encoding='utf-8') as f:
 					if flag:
-						await f.write(f"Execution time\tDate/Time\tActivePower\tWindSpeed\tWindDir\n")
-					await f.write(f"{time.strftime('%X')}\t{node_1_value[0]}\t{node_1_value[1]}\t{node_2_value[1]}\t{node_3_value[1]}\n")
+						await f.write(f"Execution time,Date/Time,ActivePower,WindSpeed,WindDir\n")
+					await f.write(f"{time.strftime('%X')},{node_1_value[0]},{node_1_value[1]},{node_2_value[1]},{node_3_value[1]}\n")
+			else: # dates don't match
+				print("Dates don't match")
+				async with aiofiles.open(filename, 'a+', encoding='utf-8') as f:
+					await f.write(f"{time.strftime('%X')},Lossed Data (Mismatch of dates)\n")
+				mismatch_count+=1
+				await asyncio.sleep(1)
+				if mismatch_count>10: 
+					break
 		print(f"finished at {time.strftime('%X')}")
 
 if __name__ == "__main__":

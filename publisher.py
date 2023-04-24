@@ -52,10 +52,10 @@ def csv_read(data):
 		
 		# Create seperate dataframes for sendinfg to different subs
 		# Each consist the data/time column
-		df_ActivePower 		= df.drop(columns=["Windspeed","Winddir","TheoreticalPC"])
-		df_WindSpeed 			= df.drop(columns=["ActivePower","Winddir","TheoreticalPC"])
-		df_WindDir 				= df.drop(columns=["Windspeed","ActivePower","TheoreticalPC"])
-		df_TheoreticalPC	= df.drop(columns=["Windspeed","Winddir","ActivePower"])
+		df_ActivePower   = df.drop(columns=["Windspeed","Winddir","TheoreticalPC"])
+		df_WindSpeed     = df.drop(columns=["ActivePower","Winddir","TheoreticalPC"])
+		df_WindDir       = df.drop(columns=["Windspeed","ActivePower","TheoreticalPC"])
+		df_TheoreticalPC = df.drop(columns=["Windspeed","Winddir","ActivePower"])
 
 		# Return seperate dataframes as tuples
 		df_list = [
@@ -70,7 +70,8 @@ def csv_read(data):
 async def main():
 	# Read csv file
 	filename = "T1.csv"
-	delay = 1
+	delay = 0.2
+
 	data=csv_read(filename)
 	# Create publishers
 	await asyncio.gather(Publisher.create(data[0],'node-1',delay),Publisher.create(data[1],'node-2',delay),Publisher.create(data[2],'node-3',delay))
