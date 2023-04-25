@@ -121,6 +121,7 @@ if __name__ == "__main__":
 		     	)
 	args = parser.parse_args()
 	if len(sys.argv) > 1:
+		# Manager Agent Part
 		print(args.infile.name, args.infile.mode)
 	else:
 		KNOWN_PUBS = ["node-1", "node-2", "node-3"]

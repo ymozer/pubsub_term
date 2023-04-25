@@ -1,8 +1,8 @@
 import asyncio
 import time
 import argparse
-import redis.asyncio as redis
 from asyncio import Future 
+import redis.asyncio as redis
 
 import pandas as pd
 import numpy as np
