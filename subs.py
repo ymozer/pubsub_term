@@ -1,9 +1,22 @@
+import os
+import sys
+import time
 import asyncio
 import aiofiles
+import argparse
 import redis.asyncio as redis
-import time
-import os
  
+class bcolors:
+	HEADER = '\033[95m'
+	OKBLUE = '\033[94m'
+	OKCYAN = '\033[96m'
+	OKGREEN = '\033[92m'
+	WARNING = '\033[93m'
+	FAIL = '\033[91m'
+	ENDC = '\033[0m'
+	BOLD = '\033[1m'
+	UNDERLINE = '\033[4m'
+    
 class Subscriber:
 	def __init__(self,*args, **kwargs):
 		self.pubs=kwargs.get('KNOWN_PUBS')
@@ -53,7 +66,7 @@ class Subscriber:
 
 	async def main(self):
 		'''Compose subscribers for async data gathering'''
-		print(f"started at {time.strftime('%X')}")
+		print(f"{bcolors.HEADER}Started at {time.strftime('%X')}{bcolors.ENDC}")
 		while True:
 			results = await asyncio.gather(self.subAgent("node-1_ActivePower"),
 											self.subAgent("node-2_WindSpeed"),
@@ -68,7 +81,7 @@ class Subscriber:
 			filename = "combined.csv"
 			# Check if all nodes have same date
 			if node_1_value[0] == node_2_value[0] == node_3_value[0]:
-				print(f"[{time.strftime('%X')}] Dates are same:\nnode-1: {node_1_value[1]}\tnode-2: {node_2_value[1]}\tnode-3: {node_3_value[1]}\n")
+				print(f"{bcolors.OKGREEN}[{time.strftime('%X')}] Dates are same:\n{bcolors.ENDC}{bcolors.OKBLUE}node-1: {node_1_value[1]}\tnode-2: {node_2_value[1]}\tnode-3: {node_3_value[1]}{bcolors.ENDC}\n")
 
 				# Check if file exist because we want to write to first row
 				# as column names (headers)
@@ -93,9 +106,23 @@ class Subscriber:
 				await asyncio.sleep(1)
 				if mismatch_count>10: 
 					break
-		print(f"finished at {time.strftime('%X')}")
+		print(f"{bcolors.HEADER}Finished at {time.strftime('%X')}{bcolors.ENDC}")
 
 if __name__ == "__main__":
-	KNOWN_PUBS = ["node-1", "node-2", "node-3"]
-	sub=Subscriber(KNOWN_PUBS=KNOWN_PUBS)
-	asyncio.run(sub.main())
+	parser=argparse.ArgumentParser(
+		prog='PubSub Term',
+		description='Wind Turbine Power Estimation'
+	)
+	parser.add_argument('-p','--predict',nargs='+',help='Predict power for given wind speed and direction')
+	parser.add_argument('infile', nargs='?',
+		      	type=argparse.FileType('a'),
+             	default=sys.stdin,
+		     	help='Input file (default: stdin). Use it if dataset already available.'
+		     	)
+	args = parser.parse_args()
+	if len(sys.argv) > 1:
+		print(args.infile.name, args.infile.mode)
+	else:
+		KNOWN_PUBS = ["node-1", "node-2", "node-3"]
+		sub=Subscriber(KNOWN_PUBS=KNOWN_PUBS)
+		asyncio.run(sub.main())

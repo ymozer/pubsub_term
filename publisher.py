@@ -1,9 +1,22 @@
 import asyncio
-from asyncio import Future 
-import redis.asyncio as redis
 import time
+import argparse
+import redis.asyncio as redis
+from asyncio import Future 
+
 import pandas as pd
 import numpy as np
+
+class bcolors:
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKCYAN = '\033[96m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
 
 class Publisher:
 	@classmethod
@@ -13,7 +26,7 @@ class Publisher:
 		self.name=name
 		self.delay=delay
 
-		print(f"started at {time.strftime('%X')}")
+		print(f"{bcolors.HEADER}{self.name} started at {time.strftime('%X')}{bcolors.ENDC}")
 		asyncio.run(await self.publisherAgent(self.data, self.name, self.delay))
 		print(f"finished at {time.strftime('%X')}")
 		asyncio.run(await self.publisherAgent(("STOP"), self.name, self.delay))
@@ -26,7 +39,7 @@ class Publisher:
 		if type(data) == str and  data == "STOP":
 			count=0
 			while count<100:
-				print(f"[{time.strftime('%X')}][{count}]: Sending stop signal for {node}. ")
+				print(f"{bcolors.HEADER}[{time.strftime('%X')}][{count}]: Sending stop signal for {node}.{bcolors.ENDC}")
 				await r.publish(node, data) # send stop signal 
 				count+=1
 			await r.close()
