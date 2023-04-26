@@ -2,6 +2,10 @@
 /Include
 /Lib
 /Scripts
+/splits
+/model_results
+/xgboost
+/share
 node*
 *.cfg
 **.pdf

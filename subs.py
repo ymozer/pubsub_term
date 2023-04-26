@@ -5,6 +5,8 @@ import asyncio
 import aiofiles
 import argparse
 import redis.asyncio as redis
+from redis.exceptions import ConnectionError
+from sklearn.model_selection import train_test_split
  
 class bcolors:
 	HEADER = '\033[95m'
@@ -27,7 +29,14 @@ class Subscriber:
 		split_str = node.split('_')  # ('NODE_NAME','VALUE_NAME')
 
 		# Connection to redis machine
-		r = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
+		pool = redis.ConnectionPool(host='localhost', port=6379, db=0, decode_responses=True)
+		r = redis.Redis(connection_pool=pool)
+		try:
+			await r.ping()
+		except ConnectionError as e:
+			print(f"[{time.strftime('%X')}]: Cannot connect to redis server!")
+			# print(e)
+			sys.exit(1)
 
 		# get other node names
 		hosts = self.pubs.copy()
@@ -107,6 +116,27 @@ class Subscriber:
 				if mismatch_count>10: 
 					break
 		print(f"{bcolors.HEADER}Finished at {time.strftime('%X')}{bcolors.ENDC}")
+	
+	def split_df(df):
+		'''Split dataframe'''
+
+	async def publish_test(self, df, pub: str):
+		'''Publish test data to redis'''
+		# Connection to redis machine
+		pool = redis.ConnectionPool(host='localhost', port=6379, db=0, decode_responses=True)
+		r = redis.Redis(connection_pool=pool)
+		try:
+			await r.ping()
+		except ConnectionError as e:
+			print(f"[{time.strftime('%X')}]: Cannot connect to redis server!")
+			# print(e)
+			sys.exit(1)
+		# publish test data
+		for index, row in df.iterrows():
+			await r.publish(pub, f"{row['Date/Time']},{row['ActivePower']}")
+			await asyncio.sleep(0.001)
+		await r.publish(pub, "STOP")
+
 
 if __name__ == "__main__":
 	parser=argparse.ArgumentParser(
