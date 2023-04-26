@@ -3,6 +3,11 @@ import sys
 import os
 import psutil
 import pickle
+import time
+import argparse
+import asyncio
+
+import redis.asyncio as redis
 
 import numpy as np
 import pandas as pd
@@ -31,15 +36,60 @@ class bcolors:
     BOLD      = '\033[1m'
     UNDERLINE = '\033[4m'
 
+class Subscriber:
+    def __init__(self):
+        pass
+
+    async def subAgent(self,node: str):
+        # split argument input to match publisher's node's:
+        # node-1_ActivePower --> ['node-1', 'ActivePower']
+        split_str = node.split('_')  # ('NODE_NAME','VALUE_NAME')
+
+        # Connection to redis machine
+        pool = redis.ConnectionPool(host='localhost', port=6379, db=0, decode_responses=True)
+        r = redis.Redis(connection_pool=pool)
+        try:
+            await r.ping()
+        except ConnectionError as e:
+            print(f"[{time.strftime('%X')}]: Cannot connect to redis server!")
+            # print(e)
+            sys.exit(1)
+
+        # subscribing to specified node
+        async with r.pubsub() as ps:
+            # subscribe to own channel
+            await ps.subscribe(split_str[0])
+            # print(f"[{time.strftime('%X')}]: Subscribed to {split_str[0]}")
+            while True:
+                message = await ps.get_message(ignore_subscribe_messages=True, timeout=3)
+                # if message NOT empty
+                if message is not None:
+                    # If incoming message, break loop and finish agent
+                    if message['data'] == "STOP":
+                        print(f"[{time.strftime('%X')}]: EOF")
+                        break
+                    stream = (message['channel'], message['data'])
+                    # print(stream)
+                    time.sleep(0.001)  # be nice to the system :)
+                    return stream
+                else:
+                    #print(f"[{time.strftime('%X')}-{split_str[0]}]: Cannot communicate with Publisher!")
+                    continue
+    async def main(self):
+        print(f"{bcolors.HEADER}Started at {time.strftime('%X')}{bcolors.ENDC}")
+        while True:
+            results = await asyncio.gather(self.subAgent("manager"))
+            print(results)
+                        
 class Model:
 
     def __init__(self, *args, **kwargs):
         self.lineer        = LinearRegression()
-        self.decision_tree = DecisionTreeRegressor()
-        self.random_forest = RandomForestRegressor()
-        self.xg_boost      = XGBRegressor()
-        self.extra_trees   = ExtraTreesRegressor()
-        self.ada_boost     = AdaBoostRegressor()
+        self.decision_tree = DecisionTreeRegressor() # type: ignore
+        self.random_forest = RandomForestRegressor() # type: ignore
+        self.xg_boost      = XGBRegressor()          # type: ignore
+        self.extra_trees   = ExtraTreesRegressor()   # type: ignore
+        self.ada_boost     = AdaBoostRegressor()     # type: ignore
 
         self.dataset_merged = kwargs['dataset_merged']
         self.df       = pd.DataFrame()
@@ -52,6 +102,7 @@ class Model:
         self.x_val    = pd.DataFrame()
         self.y_val    = pd.DataFrame()
         
+        # Run below function when class is initialized
         Model.lineer_reg(self)
         Model.decision_tree(self)
         Model.random_forest(self)
@@ -178,7 +229,6 @@ if __name__ == '__main__':
     
     loaded_model=[]
     for i in model_results:
-        print(i)
         model_file_exist = os.path.exists(os.path.join(os.getcwd(), model_results[i]))
         if model_file_exist:
             print(f'{memory_usage()} {model_results[i]} exists')
@@ -209,9 +259,9 @@ if __name__ == '__main__':
     
 
         loaded_model.append(pickle.load(open(model_results[i], 'rb')))  
-    
+
     sys.modules.pop('pickle')
-    del pickle   
+    del pickle, dataset_merged  
 
     splits={
         "x_train" : pd.read_csv('splits/x_train.csv'),
@@ -252,7 +302,6 @@ if __name__ == '__main__':
         print(y_pred.shape)
         print()
         count+=1
-    print(count)
     mae_list .sort(key=lambda x: x[1]) 
     mse_list .sort(key=lambda x: x[1]) 
     rmse_list.sort(key=lambda x: x[1])  
@@ -264,9 +313,28 @@ if __name__ == '__main__':
     print(f"RMSE: {rmse_list}")
     print(f"R^2 : {r2_list}")
     print()
-    print(list(model_results.items())[5][0])
-    print(f"{bcolors.WARNING}Best algorithm based on MAE  is {list(model_results.items())[mae_list[0][0]-1][0]}. {bcolors.ENDC}")
-    print(f"{bcolors.WARNING}Best algorithm based on RMSE is {list(model_results.items())[rmse_list[0][0]-1][0]}.{bcolors.ENDC}")
-    print(f"{bcolors.WARNING}Best algorithm based on R^2  is {list(model_results.items())[r2_list[0][0]-1][0]}.  {bcolors.ENDC}")
-    selected_model = r2_list[0][0]-list(model_results.items())[r2_list[0][0]-1][0]
-    print(f"{bcolors.FAIL}Done.{bcolors.ENDC}")
+    print(f"{memory_usage()}{bcolors.WARNING} Best algorithm based on MAE  is {list(model_results.items())[mae_list[0][0]-1][0]}. {bcolors.ENDC}")
+    print(f"{memory_usage()}{bcolors.WARNING} Best algorithm based on RMSE is {list(model_results.items())[rmse_list[0][0]-1][0]}.{bcolors.ENDC}")
+    print(f"{memory_usage()}{bcolors.WARNING} Best algorithm based on R^2  is {list(model_results.items())[r2_list[0][0]-1][0]}.  {bcolors.ENDC}")
+    
+    # Selecting the best model
+    selected_model_str = list(model_results.items())[r2_list[0][0]-1][0]
+    print(f"{memory_usage()}{bcolors.OKBLUE} {selected_model_str} is selected.{bcolors.ENDC}")
+    selected_model=loaded_model.pop(r2_list[0][0]-1)
+
+    # deleting the other models and redundant variables (Mem. Usage: 820mb -> 146mb)
+    del rmse_list, mae_list, mse_list, r2_list, loaded_model, model_results, count
+    
+    ############# TEST ESTIMATION BEGINS ###############
+    print(f"{memory_usage()}{bcolors.OKGREEN} Estimating the test set on {selected_model_str}...{bcolors.ENDC}")
+    y_pred=selected_model.predict(splits['x_test'])
+    mse = mean_squared_error(splits["y_test"], y_pred)
+    rmse = np.sqrt(mse)
+    r2 = selected_model.score(splits["x_test"], splits["y_test"])
+    print(f"{memory_usage()} Mean squared error: {mse:.2f}")
+    print(f"{memory_usage()} Root mean squared error: {rmse:.2f}")
+    print(f"{memory_usage()} R^2: {r2:.2f}")
+
+    print(f"{memory_usage()}{bcolors.FAIL} Done.{bcolors.ENDC}")
+    sub=Subscriber()
+    asyncio.run(sub.main())

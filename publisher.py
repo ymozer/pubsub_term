@@ -22,9 +22,9 @@ class Publisher:
 	@classmethod
 	async def create(cls,data, name, delay):
 		self = Publisher()
-		self.data=data
-		self.name=name
-		self.delay=delay
+		self.data=data # type: ignore
+		self.name=name # type: ignore
+		self.delay=delay # type: ignore
 
 		print(f"{bcolors.HEADER}{self.name} started at {time.strftime('%X')}{bcolors.ENDC}")
 		asyncio.run(await self.publisherAgent(self.data, self.name, self.delay))
@@ -83,7 +83,7 @@ def csv_read(data):
 async def main():
 	# Read csv file
 	filename = "T1.csv"
-	delay = 0.2
+	delay = 0.5
 
 	data=csv_read(filename)
 	# Create publishers
