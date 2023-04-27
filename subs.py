@@ -7,7 +7,9 @@ import argparse
 import redis.asyncio as redis
 from redis.exceptions import ConnectionError
 from sklearn.model_selection import train_test_split
+from io import BytesIO
 import pandas as pd
+import numpy as np
  
 class bcolors:
 	HEADER = '\033[95m'
@@ -29,14 +31,26 @@ class ManagerAgent:
 		self.delay=delay # type: ignore
 
 		print(f"{bcolors.HEADER}{self.name} started at {time.strftime('%X')}{bcolors.ENDC}")
-		asyncio.run(await self.ManagerAgent(self.data, self.name, self.delay))
+		loop = asyncio.get_event_loop()
+		tasks=[]
+		try:
+			task=loop.create_task(self.ManagerAgent(self.data, self.name, self.delay))
+			tasks.append(task)
+		finally:
+			pass
+		await asyncio.wait(tasks)
 		print(f"Finished at {time.strftime('%X')}")
-		asyncio.run(await self.ManagerAgent(("STOP"), self.name, self.delay))
+		try:
+			task=loop.create_task(self.ManagerAgent("STOP", self.name, self.delay))
+			tasks.append(task)
+		finally:
+			pass
+		await asyncio.wait(tasks)
 		return self
 	
 	async def ManagerAgent(self,data:pd.DataFrame, node:str, delay:int):
 		# Connection to redis machine
-		r = redis.Redis(host='localhost', port=6379, db=0)
+		r = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
 		print(f"{node} ping successful: {await r.ping()}")
 		# Sending 'STOP' signal to subs if file ends
 		if type(data) == str and  data == "STOP":
@@ -48,12 +62,12 @@ class ManagerAgent:
 			await r.close()
 
 		# Data publishing
-		for index, row in data.iterrows():
-			to_be_published_str = f"{row[0]}\n{row[1]}"
-			# publish dataframe to specified node
-			await r.publish(node, to_be_published_str)
-			# Sleep async for specified seconds
-			await asyncio.sleep(delay)
+		if type(data) == pd.DataFrame:
+			for index, row in data.iterrows():
+				row_json=row.to_json()
+				await r.publish(node,row_json)
+				# Sleep async for specified seconds
+				await asyncio.sleep(delay)
 		await r.close()
 '''END OF CLASS'''
 
@@ -176,11 +190,12 @@ class Subscriber:
 		await r.publish(pub, "STOP")
 
 async def manage():
+	print("Sending test data to ML Agent...")
 	# Read splitted data
 	x_test = pd.read_csv(os.path.join("splits","x_test.csv"))
 	y_test = pd.read_csv(os.path.join("splits","y_test.csv"))
 	# Send splitted data to ML Agent for prediction
-	ml_agent= await ManagerAgent.create(x_test, "manager",0.5)
+	ml_agent= await ManagerAgent.create(x_test, "manager", 0.5)
 
 if __name__ == "__main__":
 	parser=argparse.ArgumentParser(
