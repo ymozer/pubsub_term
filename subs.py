@@ -48,24 +48,23 @@ class ManagerAgent:
 		await asyncio.wait(tasks)
 		return self
 	
-	async def ManagerAgent(self,data:pd.DataFrame, node:str, delay:int):
+	async def ManagerAgent(self,data:list, node:str, delay:int):
 		# Connection to redis machine
 		r = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
 		print(f"{node} ping successful: {await r.ping()}")
 		# Sending 'STOP' signal to subs if file ends
 		if type(data) == str and  data == "STOP":
 			count=0
+			print(f"{bcolors.HEADER}[{time.strftime('%X')}]: Sending stop signal for {node}.{bcolors.ENDC}")
 			while count<100:
-				print(f"{bcolors.HEADER}[{time.strftime('%X')}][{count}]: Sending stop signal for {node}.{bcolors.ENDC}")
 				await r.publish(node, data) # send stop signal 
 				count+=1
 			await r.close()
 
 		# Data publishing
-		if type(data) == pd.DataFrame:
-			for index, row in data.iterrows():
-				row_json=row.to_json()
-				await r.publish(node,row_json)
+		if type(data) == list:
+			for i in data:
+				await r.publish(node,str(i))
 				# Sleep async for specified seconds
 				await asyncio.sleep(delay)
 		await r.close()
@@ -192,8 +191,8 @@ class Subscriber:
 async def manage():
 	print("Sending test data to ML Agent...")
 	# Read splitted data
-	x_test = pd.read_csv(os.path.join("splits","x_test.csv"))
-	y_test = pd.read_csv(os.path.join("splits","y_test.csv"))
+	with open("splits/x_test.csv","r",encoding="utf-8") as f:
+		x_test = f.readlines()
 	# Send splitted data to ML Agent for prediction
 	ml_agent= await ManagerAgent.create(x_test, "manager", 0.5)
 

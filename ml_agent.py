@@ -6,7 +6,7 @@ import pickle
 import time
 import argparse
 import asyncio
-import json
+import string
 import redis.asyncio as redis
 
 import numpy as np
@@ -38,7 +38,7 @@ class bcolors:
 
 class Subscriber:
     def __init__(self):
-        self.results=np.array([[],[]],np.float32)
+        self.results=[]
 
     async def subAgent(self,node: str):
         # split argument input to match publisher's node's:
@@ -46,34 +46,31 @@ class Subscriber:
         split_str = node.split('_')  # ('NODE_NAME','VALUE_NAME')
 
         # Connection to redis machine
-        pool = redis.ConnectionPool(host='localhost', port=6379, db=0)
+        pool = redis.ConnectionPool(host='localhost', port=6379, db=0, decode_responses=True)
         r = redis.Redis(connection_pool=pool)
         try:
             await r.ping()
         except ConnectionError as e:
-            print(f"[{time.strftime('%X')}]: Cannot connect to redis server!")
-            # print(e)
-            sys.exit(1)
+            raise Exception(f"[{time.strftime('%X')}]: Cannot connect to redis server!")          
 
         # subscribing to specified node
         async with r.pubsub() as ps:
             # subscribe to own channel
             await ps.subscribe(split_str[0])
             # print(f"[{time.strftime('%X')}]: Subscribed to {split_str[0]}")
+            
             while True:
                 message = await ps.get_message(ignore_subscribe_messages=True, timeout=3)
                 # if message NOT empty
                 if message is not None:
                     # If incoming message, break loop and finish agent
-                    if message['data'] == "STOP":
+                    if (message['data']) == "STOP":
                         print(f"[{time.strftime('%X')}]: EOF")
                         break
-                    stream = (message['channel'], message['data'])
-                    # print(stream)
+                    self.results = (message['channel'], message['data'])
                     time.sleep(0.001)  # be nice to the system :)
-                    return stream
+                    return self.results
                 else:
-                    #print(f"[{time.strftime('%X')}-{split_str[0]}]: Cannot communicate with Publisher!")
                     continue
 
 class Model:
@@ -325,16 +322,14 @@ async def main():
     result_list = []
     while True:
         results = await asyncio.gather(sub.subAgent("manager"))
-        results=results[0][1].decode('utf-8')
-        print(results)
-        if results == 'STOP':
+        print(results[0])
+        if results[0] is None:
             print("EOF")
             break
-        results=json.dumps(results)
-        results=json.loads(results)
-        result_list.append(results)
-        #await model.predict(loaded_np)
+        else:
+            result_list.append(results[0])
     print("Dosya Bitti")
+
 if __name__ == '__main__':
     if not os.path.exists('model_results'):
         os.makedirs('model_results')
@@ -342,16 +337,14 @@ if __name__ == '__main__':
 
     model=Model(dataset_merged=dataset_merged)
     sub=Subscriber()
-
     loop = asyncio.get_event_loop()
     try:
         loop.run_until_complete(main())
     finally:
         loop.close()
+    print(result_list)
     ############# TEST ESTIMATION BEGINS ###############
-    print(f"{memory_usage()}{bcolors.OKGREEN} Estimating the test set on {model.selected_model_str}...{bcolors.ENDC}")
-    for i in result_list:
-        print(i)
+    print(f"{memory_usage()}{bcolors.OKGREEN}Estimating the test set on {model.selected_model_str}...{bcolors.ENDC}")
     #TODO
-    model.predict()
-    print(f"{memory_usage()}{bcolors.FAIL} Done.{bcolors.ENDC}")
+    #model.predict()
+    print(f"{memory_usage()}{bcolors.FAIL}Done.{bcolors.ENDC}")
