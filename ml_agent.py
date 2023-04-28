@@ -24,6 +24,16 @@ from sklearn.model_selection import train_test_split
 
 warnings.filterwarnings('ignore')
 
+    
+model_results= {
+    'lineer_reg'    : 'model_results/lineer_reg.sav',
+    'decision_tree' : 'model_results/decision_tree.sav',
+    'random_forest' : 'model_results/random_forest.sav',
+    'xg_boost'      : 'model_results/xg_boost.sav',
+    'extra_trees'   : 'model_results/extra_trees.sav',
+    'ada_boost'     : 'model_results/ada_boost.sav'
+}
+        
 
 class bcolors:
     HEADER    = '\033[95m'
@@ -58,7 +68,7 @@ class Subscriber:
             # subscribe to own channel
             await ps.subscribe(split_str[0])
             # print(f"[{time.strftime('%X')}]: Subscribed to {split_str[0]}")
-            
+            print("Subscribed to {}".format(split_str[0]))
             while True:
                 message = await ps.get_message(ignore_subscribe_messages=True, timeout=3)
                 # if message NOT empty
@@ -100,13 +110,27 @@ class Model:
 
         
         # Run below function when class is initialized
+        if not os.path.exists('splits'):
+            os.makedirs('splits')
+        if not os.path.exists(model_results['lineer_reg']):
+            Model.lineer_reg(self)
+        if not os.path.exists(model_results['decision_tree']):
+            Model.decision_tree(self)
+        if not os.path.exists(model_results['random_forest']):
+            Model.random_forest(self)
+        if not os.path.exists(model_results['xg_boost']):
+            Model.xg_boost(self)
+        if not os.path.exists(model_results['extra_trees']):
+            Model.extra_trees(self)
+        if not os.path.exists(model_results['ada_boost']):
+            Model.ada_boost(self)
         Model.model_results(self)
+
 
             
     def csvToDF(self):
         # Define the column headers
-        headers = ['Execution time', 'Date/Time', 'LV ActivePower (kW)', 'Wind Speed (m/s)', 'Theoretical_Power_Curve (KWh)', 'Wind Direction (°)']
-
+        headers = ["Execution time","Date/Time","LV ActivePower","Wind Speed","Theoretical_Power_Curve","Wind Direction"]
         # Read the CSV file into a Pandas dfFrame
         self.df = pd.read_csv(self.dataset_merged, names=headers, header=0, sep=';')
         # Split the date and time into separate columns
@@ -120,8 +144,8 @@ class Model:
 
         self.df = self.df.drop(columns=['Date/Time', 'Execution time'])
 
-        X= self.df.drop(['LV ActivePower (kW)'] , axis = 1)
-        y= self.df['LV ActivePower (kW)']
+        X= self.df.drop(['LV ActivePower'] , axis = 1)
+        y= self.df['LV ActivePower']
 
         # Split into train and test sets (80% train, 20% test)
         self.x_train , self.x_test , self.y_train , self.y_test = train_test_split(X,y, test_size=0.2, train_size=0.8, random_state=42, shuffle=False)
@@ -152,6 +176,7 @@ class Model:
 
     @classmethod
     def lineer_reg(cls, self):
+        print("Training Linear Regression...")
         self.csvToDF() 
         self.lineer = LinearRegression()
         self.lineer.fit(self.x_train, self.y_train)
@@ -159,6 +184,7 @@ class Model:
     
     @classmethod
     def decision_tree(cls, self):
+        print("Training Decision Tree...")
         self.csvToDF()
         self.decision_tree = DecisionTreeRegressor()
         self.decision_tree.fit(self.x_train, self.y_train)
@@ -166,6 +192,7 @@ class Model:
 
     @classmethod
     def random_forest(cls, self):
+        print("Training Random Forest...")
         self.csvToDF()
         self.random_forest = RandomForestRegressor()
         self.random_forest.fit(self.x_train, self.y_train)
@@ -173,6 +200,7 @@ class Model:
     
     @classmethod
     def xg_boost(cls, self):
+        print("Training XG Boost...")
         self.csvToDF()
         self.xg_boost = XGBRegressor()
         self.xg_boost.fit(self.x_train, self.y_train)
@@ -180,6 +208,7 @@ class Model:
     
     @classmethod
     def extra_trees(cls, self):
+        print("Training Extra Trees...")
         self.csvToDF()
         self.extra_trees = ExtraTreesRegressor()
         self.extra_trees.fit(self.x_train, self.y_train)
@@ -187,12 +216,14 @@ class Model:
     
     @classmethod
     def ada_boost(cls, self):
+        print("Training Ada Boost...")
         self.csvToDF()
         self.ada_boost = AdaBoostRegressor()
         self.ada_boost.fit(self.x_train, self.y_train)
         return self.ada_boost
     
     def model_results(self):
+        print("Saving models...")
         dataset_merged   = 'merged.csv'
         dataset_exist    = os.path.exists(os.path.join(os.getcwd(), dataset_merged))
 
@@ -201,16 +232,7 @@ class Model:
         else:
             print(f'{bcolors.FAIL}{memory_usage()} {dataset_merged} does not exist. Supply the file and try again.{bcolors.ENDC}')
             sys.exit(1)
-            
-        model_results= {
-            'lineer_reg'    : 'model_results/lineer_reg.sav',
-            'decision_tree' : 'model_results/decision_tree.sav',
-            'random_forest' : 'model_results/random_forest.sav',
-            'xg_boost'      : 'model_results/xg_boost.sav',
-            'extra_trees'   : 'model_results/extra_trees.sav',
-            'ada_boost'     : 'model_results/ada_boost.sav'
-        }
-        
+
         loaded_model=[]
         for i in model_results:
             model_file_exist = os.path.exists(os.path.join(os.getcwd(), model_results[i]))
@@ -226,17 +248,17 @@ class Model:
                 self.csv_convert()
                 match i:
                     case 'lineer_reg':
-                        pickle.dump(self.lineer, open(model_results[i], 'wb'))
+                        pickle.dump(self.lineer        , open(model_results[i], 'wb'))
                     case 'decision_tree':
-                        pickle.dump(self.decision_tree, open(model_results[i], 'wb'))
+                        pickle.dump(self.decision_tree , open(model_results[i], 'wb'))
                     case 'random_forest':
-                        pickle.dump(self.random_forest, open(model_results[i], 'wb'))
+                        pickle.dump(self.random_forest , open(model_results[i], 'wb'))
                     case 'xg_boost':
-                        pickle.dump(self.xg_boost, open(model_results[i], 'wb'))
+                        pickle.dump(self.xg_boost      , open(model_results[i], 'wb'))
                     case 'extra_trees': 
-                        pickle.dump(self.extra_trees, open(model_results[i], 'wb'))
+                        pickle.dump(self.extra_trees   , open(model_results[i], 'wb'))
                     case 'ada_boost':
-                        pickle.dump(self.ada_boost, open(model_results[i], 'wb'))
+                        pickle.dump(self.ada_boost     , open(model_results[i], 'wb'))
                     case _:
                         print(f'{bcolors.FAIL}Model name is not valid. Please check the model name and try again.{bcolors.ENDC}')
             loaded_model.append(pickle.load(open(model_results[i], 'rb')))  
@@ -310,6 +332,7 @@ class Model:
         print(f"{memory_usage()} Mean squared error: {mse:.2f}")
         print(f"{memory_usage()} Root mean squared error: {rmse:.2f}")
         print(f"{memory_usage()} R^2: {r2:.2f}")
+        return y_pred
 
 def memory_usage():
     # return the memory usage in MB
@@ -322,13 +345,14 @@ async def main():
     result_list = []
     while True:
         results = await asyncio.gather(sub.subAgent("manager"))
-        print(results[0])
         if results[0] is None:
             print("EOF")
             break
         else:
+            print("RESULT: "+str(results[0]))
             result_list.append(results[0])
     print("Dosya Bitti")
+    print("RESULT LİST: "+str(result_list))
 
 if __name__ == '__main__':
     if not os.path.exists('model_results'):
@@ -342,9 +366,14 @@ if __name__ == '__main__':
         loop.run_until_complete(main())
     finally:
         loop.close()
-    print(result_list)
+    print(result_list[0])
+    with open("incoming_x_test.csv","w",encoding="utf-8") as f:
+        for i in result_list:
+            i=list(i)
+            f.writelines(str(i[1]))
     ############# TEST ESTIMATION BEGINS ###############
     print(f"{memory_usage()}{bcolors.OKGREEN}Estimating the test set on {model.selected_model_str}...{bcolors.ENDC}")
     #TODO
-    #model.predict()
+    test_df=pd.read_csv("incoming_x_test.csv")
+    asyncio.run(model.predict(test_df)) 
     print(f"{memory_usage()}{bcolors.FAIL}Done.{bcolors.ENDC}")

@@ -24,7 +24,7 @@ class bcolors:
     
 class ManagerAgent:
 	@classmethod
-	async def create(cls,data, name, delay):
+	async def create(cls,data, name, delay=3):
 		self = ManagerAgent()
 		self.data=data # type: ignore
 		self.name=name # type: ignore
