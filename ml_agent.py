@@ -26,12 +26,12 @@ warnings.filterwarnings('ignore')
 
     
 model_results= {
-    'lineer_reg'    : 'model_results/lineer_reg.sav',
-    'decision_tree' : 'model_results/decision_tree.sav',
-    'random_forest' : 'model_results/random_forest.sav',
-    'xg_boost'      : 'model_results/xg_boost.sav',
-    'extra_trees'   : 'model_results/extra_trees.sav',
-    'ada_boost'     : 'model_results/ada_boost.sav'
+    'lineer_reg'    : 'model_results/lineer_reg.sav',    #0
+    'decision_tree' : 'model_results/decision_tree.sav', #1
+    'random_forest' : 'model_results/random_forest.sav', #2
+    'xg_boost'      : 'model_results/xg_boost.sav',      #3
+    'extra_trees'   : 'model_results/extra_trees.sav',   #4
+    'ada_boost'     : 'model_results/ada_boost.sav'      #5
 }
         
 
@@ -103,27 +103,36 @@ class Model:
         self.y_test   = pd.DataFrame()
         self.x_val    = pd.DataFrame()
         self.y_val    = pd.DataFrame()
+        self.mae_list  = []
+        self.mse_list  = []
+        self.rmse_list = []
+        self.r2_list   = []
+        self.flag=False
+        self.count=0
 
-        self.splits={}
         self.selected_model = None
         self.selected_model_str = None
 
+        self.splits={
+            "x_train" : pd.read_csv('splits/x_train.csv'),
+            "y_train" : pd.read_csv('splits/y_train.csv'),
+            "x_test"  : pd.read_csv('splits/x_test.csv' ),
+            "y_test"  : pd.read_csv('splits/y_test.csv' ),
+            "x_val"   : pd.read_csv('splits/x_val.csv'  ),
+            "y_val"   : pd.read_csv('splits/y_val.csv'  )
+        } 
+
         
-        # Run below function when class is initialized
+        # Run below functions when class is initialized
         if not os.path.exists('splits'):
             os.makedirs('splits')
-        if not os.path.exists(model_results['lineer_reg']):
-            Model.lineer_reg(self)
-        if not os.path.exists(model_results['decision_tree']):
-            Model.decision_tree(self)
-        if not os.path.exists(model_results['random_forest']):
-            Model.random_forest(self)
-        if not os.path.exists(model_results['xg_boost']):
-            Model.xg_boost(self)
-        if not os.path.exists(model_results['extra_trees']):
-            Model.extra_trees(self)
-        if not os.path.exists(model_results['ada_boost']):
-            Model.ada_boost(self)
+
+        Model.lineer_reg(self)
+        Model.decision_tree(self)
+        Model.random_forest(self)
+        Model.xg_boost(self)
+        Model.extra_trees(self)
+        Model.ada_boost(self)
         Model.model_results(self)
 
 
@@ -153,10 +162,11 @@ class Model:
         # Split the remaining 20% into validation and test sets (50% each)
         self.x_test , self.x_val , self.y_test , self.y_val = train_test_split(self.x_test, self.y_test, test_size=0.5, random_state=42, shuffle=False)
         
+        self.flag=True
         if not os.path.exists('splits'):
             os.makedirs('splits')
     
-    def csv_convert(self):
+    def dfToCSV(self):
         print('Converting splitted dataframes to csv files...')
         if not os.path.exists('splits'):
             os.makedirs('splits')
@@ -176,54 +186,113 @@ class Model:
 
     @classmethod
     def lineer_reg(cls, self):
-        print("Training Linear Regression...")
-        self.csvToDF() 
+        print(f"{memory_usage()}Calculating Linear Regression...")
+        if not self.flag:
+            self.csvToDF() 
         self.lineer = LinearRegression()
-        self.lineer.fit(self.x_train, self.y_train)
-        return self.lineer
+        if not os.path.exists(model_results["lineer_reg"]): 
+            self.lineer.fit(self.x_train, self.y_train)
+        else:
+            self.lineer=pickle.load(open(model_results["lineer_reg"], 'rb'))
+        self.calculate_scores(self.lineer)
+        pickle.dump(self.lineer, open(model_results["lineer_reg"], 'wb'))
+        del self.lineer     
     
     @classmethod
     def decision_tree(cls, self):
-        print("Training Decision Tree...")
-        self.csvToDF()
+        print(f"{memory_usage()}Calculating Decision Tree...")
+        if not self.flag:
+            self.csvToDF()
         self.decision_tree = DecisionTreeRegressor()
-        self.decision_tree.fit(self.x_train, self.y_train)
-        return self.decision_tree
+        if not os.path.exists(model_results["decision_tree"]): 
+            self.decision_tree.fit(self.x_train, self.y_train)
+        else:
+            self.decision_tree=pickle.load(open(model_results["decision_tree"], 'rb'))
+        self.calculate_scores(self.decision_tree)
+        pickle.dump(self.decision_tree, open(model_results["decision_tree"], 'wb'))
+        del self.decision_tree
 
     @classmethod
     def random_forest(cls, self):
-        print("Training Random Forest...")
-        self.csvToDF()
+        print(f"{memory_usage()}Calculating Random Forest...")
+        if not self.flag:
+            self.csvToDF()
         self.random_forest = RandomForestRegressor()
-        self.random_forest.fit(self.x_train, self.y_train)
-        return self.random_forest
+        if not os.path.exists(model_results["random_forest"]): 
+            self.random_forest.fit(self.x_train, self.y_train)
+        else:
+            self.random_forest=pickle.load(open(model_results["random_forest"], 'rb'))
+        self.calculate_scores(self.random_forest)
+        pickle.dump(self.random_forest, open(model_results["random_forest"], 'wb'))
+        del self.random_forest      
     
     @classmethod
     def xg_boost(cls, self):
-        print("Training XG Boost...")
-        self.csvToDF()
+        print(f"{memory_usage()}Calculating XG Boost...")
+        if not self.flag:
+            self.csvToDF()
         self.xg_boost = XGBRegressor()
+        if not os.path.exists(model_results["xg_boost"]): 
+            self.xg_boost.fit(self.x_train, self.y_train)
+        else:
+            self.xg_boost=pickle.load(open(model_results["xg_boost"], 'rb'))
         self.xg_boost.fit(self.x_train, self.y_train)
-        return self.xg_boost
+        self.calculate_scores(self.xg_boost)
+        pickle.dump(self.xg_boost, open(model_results["xg_boost"], 'wb'))
+        del self.xg_boost
     
     @classmethod
     def extra_trees(cls, self):
-        print("Training Extra Trees...")
-        self.csvToDF()
+        print(f"{memory_usage()}Calculating Extra Trees...")
+        if not self.flag:
+            self.csvToDF()
         self.extra_trees = ExtraTreesRegressor()
-        self.extra_trees.fit(self.x_train, self.y_train)
-        return self.extra_trees
+        if not os.path.exists(model_results["extra_trees"]): 
+            self.extra_trees.fit(self.x_train, self.y_train)
+        else:
+            self.extra_trees=pickle.load(open(model_results["extra_trees"], 'rb'))
+        self.calculate_scores(self.extra_trees)
+        pickle.dump(self.extra_trees, open(model_results["extra_trees"], 'wb'))
+        del self.extra_trees
     
     @classmethod
     def ada_boost(cls, self):
-        print("Training Ada Boost...")
-        self.csvToDF()
+        print(f"{memory_usage()}Calculating Ada Boost...")
+        if not self.flag:
+            self.csvToDF()
         self.ada_boost = AdaBoostRegressor()
-        self.ada_boost.fit(self.x_train, self.y_train)
-        return self.ada_boost
+        if not os.path.exists(model_results["ada_boost"]): 
+            self.ada_boost.fit(self.x_train, self.y_train)
+        else:
+            self.ada_boost=pickle.load(open(model_results["ada_boost"], 'rb'))
+        self.calculate_scores(self.ada_boost)
+        pickle.dump(self.ada_boost, open(model_results["ada_boost"], 'wb'))
+        del self.ada_boost
     
+    def calculate_scores(self, model):
+        print(f"{bcolors.OKGREEN}{model}{bcolors.ENDC}")
+        y_pred=model.predict(self.splits['x_val'])
+        mae = mean_absolute_error(self.splits["y_val"], y_pred)
+        self.mae_list.append((self.count, mae))
+        print(f'Mean absolute error: {mae:.2f}')
+
+        # Calculate the mean squared error
+        mse = mean_squared_error(self.splits["y_val"], y_pred)
+        self.mse_list.append((self.count, mse))
+        print(f'Mean squared error: {mse:.2f}')
+
+        # Calculate the root mean squared error
+        rmse = np.sqrt(mse)
+        self.rmse_list.append((self.count, rmse))
+        print(f'Root mean squared error: {rmse:.2f}')
+
+        # Calculate the coefficient of determination (R^2)
+        r2 = model.score(self.splits["x_val"], self.splits["y_val"])
+        self.r2_list.append((self.count,r2))
+        print(f'R^2: {r2:.2f}')
+        self.count+=1
+
     def model_results(self):
-        print("Saving models...")
         dataset_merged   = 'merged.csv'
         dataset_exist    = os.path.exists(os.path.join(os.getcwd(), dataset_merged))
 
@@ -233,98 +302,29 @@ class Model:
             print(f'{bcolors.FAIL}{memory_usage()} {dataset_merged} does not exist. Supply the file and try again.{bcolors.ENDC}')
             sys.exit(1)
 
-        loaded_model=[]
-        for i in model_results:
-            model_file_exist = os.path.exists(os.path.join(os.getcwd(), model_results[i]))
-            if model_file_exist:
-                print(f'{memory_usage()} {model_results[i]} exists')
-                if not os.path.exists('splits'):
-                    print(f'{memory_usage()} splits folder does not exist.\n{bcolors.FAIL}Please delete {model_results["lineer_reg"]} and try again.{bcolors.ENDC}')
-                    sys.exit(1)
-            else:
-                print(f'{memory_usage()} {model_results[i]} does not exist. Training the model...')
-                # For some reason csv_convert is not triggering in above if statement
-                print(f'{memory_usage()} splits does not exist. Creating the splits...')
-                self.csv_convert()
-                match i:
-                    case 'lineer_reg':
-                        pickle.dump(self.lineer        , open(model_results[i], 'wb'))
-                    case 'decision_tree':
-                        pickle.dump(self.decision_tree , open(model_results[i], 'wb'))
-                    case 'random_forest':
-                        pickle.dump(self.random_forest , open(model_results[i], 'wb'))
-                    case 'xg_boost':
-                        pickle.dump(self.xg_boost      , open(model_results[i], 'wb'))
-                    case 'extra_trees': 
-                        pickle.dump(self.extra_trees   , open(model_results[i], 'wb'))
-                    case 'ada_boost':
-                        pickle.dump(self.ada_boost     , open(model_results[i], 'wb'))
-                    case _:
-                        print(f'{bcolors.FAIL}Model name is not valid. Please check the model name and try again.{bcolors.ENDC}')
-            loaded_model.append(pickle.load(open(model_results[i], 'rb')))  
-        print(loaded_model)
-        self.splits={
-            "x_train" : pd.read_csv('splits/x_train.csv'),
-            "y_train" : pd.read_csv('splits/y_train.csv'),
-            "x_test"  : pd.read_csv('splits/x_test.csv' ),
-            "y_test"  : pd.read_csv('splits/y_test.csv' ),
-            "x_val"   : pd.read_csv('splits/x_val.csv'  ),
-            "y_val"   : pd.read_csv('splits/y_val.csv'  )
-        }
 
-        mae_list  = []
-        mse_list  = []
-        rmse_list = []
-        r2_list   = []
-        count=1
-        for i in loaded_model:
-            print(f"{bcolors.OKGREEN}{i}{bcolors.ENDC}")
-            y_pred=i.predict(self.splits['x_val'])
-            mae = mean_absolute_error(self.splits["y_val"], y_pred)
-            mae_list.append((count, mae))
-            print(f'Mean absolute error: {mae:.2f}')
+        self.mae_list .sort(key=lambda x: x[1]) 
+        self.mse_list .sort(key=lambda x: x[1]) 
+        self.rmse_list.sort(key=lambda x: x[1])
+        self.r2_list  .sort(key=lambda x: x[1], reverse=True)
 
-            # Calculate the mean squared error
-            mse = mean_squared_error(self.splits["y_val"], y_pred)
-            mse_list.append((count, mse))
-            print(f'Mean squared error: {mse:.2f}')
+        print(f"MAE : {self.mae_list}")
+        print(f"MSE : {self.mse_list}")
+        print(f"RMSE: {self.rmse_list}")
+        print(f"R^2 : {self.r2_list}")
 
-            # Calculate the root mean squared error
-            rmse = np.sqrt(mse)
-            rmse_list.append((count, rmse))
-            print(f'Root mean squared error: {rmse:.2f}')
-
-            # Calculate the coefficient of determination (R^2)
-            r2 = i.score(self.splits["x_val"], self.splits["y_val"])
-            r2_list.append((count, r2))
-            print(f'R^2: {r2:.2f}')
-
-            print(y_pred.shape)
-            print()
-            count+=1
-
-        mae_list .sort(key=lambda x: x[1]) 
-        mse_list .sort(key=lambda x: x[1]) 
-        rmse_list.sort(key=lambda x: x[1])  
-        rmse_list.sort(key=lambda x: x[1])
-        r2_list  .sort(key=lambda x: x[1], reverse=True)
-
-        print(f"MAE : {mae_list}")
-        print(f"MSE : {mse_list}")
-        print(f"RMSE: {rmse_list}")
-        print(f"R^2 : {r2_list}")
-        print()
-        print(f"{memory_usage()}{bcolors.WARNING} Best algorithm based on MAE  is {list(model_results.items())[mae_list[0][0]-1][0]}. {bcolors.ENDC}")
-        print(f"{memory_usage()}{bcolors.WARNING} Best algorithm based on RMSE is {list(model_results.items())[rmse_list[0][0]-1][0]}.{bcolors.ENDC}")
-        print(f"{memory_usage()}{bcolors.WARNING} Best algorithm based on R^2  is {list(model_results.items())[r2_list[0][0]-1][0]}.  {bcolors.ENDC}")
+        print(f"{memory_usage()}{bcolors.WARNING} Best algorithm based on MAE  is {list(model_results.items())[self.mae_list[0][0]][0]}. {bcolors.ENDC}")
+        print(f"{memory_usage()}{bcolors.WARNING} Best algorithm based on RMSE is {list(model_results.items())[self.rmse_list[0][0]][0]}.{bcolors.ENDC}")
+        print(f"{memory_usage()}{bcolors.WARNING} Best algorithm based on R^2  is {list(model_results.items())[self.r2_list[0][0]][0]}.  {bcolors.ENDC}")
         
+        print("")
         # Selecting the best model
-        self.selected_model_str = list(model_results.items())[r2_list[0][0]-1][0]
+        self.selected_model_str = list(model_results.items())[self.r2_list[0][0]][0]
         print(f"{memory_usage()}{bcolors.OKBLUE} {self.selected_model_str} is selected.{bcolors.ENDC}")
-        self.selected_model=loaded_model.pop(r2_list[0][0]-1)
+        self.selected_model=pickle.load(open(model_results[self.selected_model_str], 'rb'))
+        del self.mae_list,self.mse_list,self.rmse_list,self.r2_list
 
     async def predict(self,value):
-        sub=Subscriber()
         y_pred=self.selected_model.predict(value)
         mse = mean_squared_error(model.splits["y_test"], y_pred)
         rmse = np.sqrt(mse)
