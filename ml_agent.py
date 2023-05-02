@@ -108,21 +108,23 @@ class Model:
         self.rmse_list = []
         self.r2_list   = []
         self.flag=False
+        self.flagg=False
         self.count=0
 
         self.selected_model = None
         self.selected_model_str = None
 
+        
         self.splits={
-            "x_train" : pd.read_csv('splits/x_train.csv'),
-            "y_train" : pd.read_csv('splits/y_train.csv'),
-            "x_test"  : pd.read_csv('splits/x_test.csv' ),
-            "y_test"  : pd.read_csv('splits/y_test.csv' ),
-            "x_val"   : pd.read_csv('splits/x_val.csv'  ),
-            "y_val"   : pd.read_csv('splits/y_val.csv'  )
+            "x_train" : pd.DataFrame(),
+            "y_train" : pd.DataFrame(),
+            "x_test"  : pd.DataFrame(),
+            "y_test"  : pd.DataFrame(),
+            "x_val"   : pd.DataFrame(),
+            "y_val"   : pd.DataFrame()
         } 
 
-        
+        self.dfToCSV()
         # Run below functions when class is initialized
         if not os.path.exists('splits'):
             os.makedirs('splits')
@@ -161,38 +163,35 @@ class Model:
 
         # Split the remaining 20% into validation and test sets (50% each)
         self.x_test , self.x_val , self.y_test , self.y_val = train_test_split(self.x_test, self.y_test, test_size=0.5, random_state=42, shuffle=False)
-        
+        print(self.x_train.shape, self.x_test.shape, self.x_val.shape, self.y_train.shape, self.y_test.shape, self.y_val.shape)
         self.flag=True
-        if not os.path.exists('splits'):
-            os.makedirs('splits')
+
     
     def dfToCSV(self):
-        print('Converting splitted dataframes to csv files...')
+        self.flagg=True
         if not os.path.exists('splits'):
             os.makedirs('splits')
-        if not os.path.exists('splits/x_train.csv'):
-            self.x_train.to_csv('splits/x_train.csv', index=False)
-        if not os.path.exists('splits/y_train.csv'):
-            self.y_train.to_csv('splits/y_train.csv', index=False)
-        if not os.path.exists('splits/x_test.csv'):
-            self.x_test .to_csv('splits/x_test.csv' , index=False)
-        if not os.path.exists('splits/y_test.csv'):
-            self.y_test .to_csv('splits/y_test.csv' , index=False)
-        if not os.path.exists('splits/x_val.csv'):
-            self.x_val  .to_csv('splits/x_val.csv'  , index=False)
-        if not os.path.exists('splits/y_val.csv'):
-            self.y_val  .to_csv('splits/y_val.csv'  , index=False)
-
+        print('Converting splitted dataframes to csv files...')
+        self.x_train.to_csv('splits/x_train.csv', index=False)
+        self.y_train.to_csv('splits/y_train.csv', index=False)
+        self.x_test .to_csv('splits/x_test.csv' , index=False)
+        self.y_test .to_csv('splits/y_test.csv' , index=False)
+        self.x_val  .to_csv('splits/x_val.csv'  , index=False)
+        self.y_val  .to_csv('splits/y_val.csv'  , index=False)
 
     @classmethod
     def lineer_reg(cls, self):
         print(f"{memory_usage()}Calculating Linear Regression...")
         if not self.flag:
-            self.csvToDF() 
+            print("1")
+            self.csvToDF()
+        self.dfToCSV()
         self.lineer = LinearRegression()
         if not os.path.exists(model_results["lineer_reg"]): 
+            print("a")
             self.lineer.fit(self.x_train, self.y_train)
         else:
+            print("b")
             self.lineer=pickle.load(open(model_results["lineer_reg"], 'rb'))
         self.calculate_scores(self.lineer)
         pickle.dump(self.lineer, open(model_results["lineer_reg"], 'wb'))
@@ -203,6 +202,8 @@ class Model:
         print(f"{memory_usage()}Calculating Decision Tree...")
         if not self.flag:
             self.csvToDF()
+        if not self.flagg:
+            self.dfToCSV()
         self.decision_tree = DecisionTreeRegressor()
         if not os.path.exists(model_results["decision_tree"]): 
             self.decision_tree.fit(self.x_train, self.y_train)
@@ -217,6 +218,8 @@ class Model:
         print(f"{memory_usage()}Calculating Random Forest...")
         if not self.flag:
             self.csvToDF()
+        if not self.flagg:
+            self.dfToCSV()
         self.random_forest = RandomForestRegressor()
         if not os.path.exists(model_results["random_forest"]): 
             self.random_forest.fit(self.x_train, self.y_train)
@@ -231,6 +234,8 @@ class Model:
         print(f"{memory_usage()}Calculating XG Boost...")
         if not self.flag:
             self.csvToDF()
+        if not self.flagg:
+            self.dfToCSV()
         self.xg_boost = XGBRegressor()
         if not os.path.exists(model_results["xg_boost"]): 
             self.xg_boost.fit(self.x_train, self.y_train)
@@ -246,6 +251,8 @@ class Model:
         print(f"{memory_usage()}Calculating Extra Trees...")
         if not self.flag:
             self.csvToDF()
+        if not self.flagg:
+            self.dfToCSV()
         self.extra_trees = ExtraTreesRegressor()
         if not os.path.exists(model_results["extra_trees"]): 
             self.extra_trees.fit(self.x_train, self.y_train)
@@ -260,6 +267,8 @@ class Model:
         print(f"{memory_usage()}Calculating Ada Boost...")
         if not self.flag:
             self.csvToDF()
+        if not self.flagg:
+            self.dfToCSV()
         self.ada_boost = AdaBoostRegressor()
         if not os.path.exists(model_results["ada_boost"]): 
             self.ada_boost.fit(self.x_train, self.y_train)
@@ -271,13 +280,13 @@ class Model:
     
     def calculate_scores(self, model):
         print(f"{bcolors.OKGREEN}{model}{bcolors.ENDC}")
-        y_pred=model.predict(self.splits['x_val'])
-        mae = mean_absolute_error(self.splits["y_val"], y_pred)
+        y_pred=model.predict(self.x_val)
+        mae = mean_absolute_error(self.y_val, y_pred)
         self.mae_list.append((self.count, mae))
         print(f'Mean absolute error: {mae:.2f}')
 
         # Calculate the mean squared error
-        mse = mean_squared_error(self.splits["y_val"], y_pred)
+        mse = mean_squared_error(self.y_val, y_pred)
         self.mse_list.append((self.count, mse))
         print(f'Mean squared error: {mse:.2f}')
 
@@ -287,7 +296,7 @@ class Model:
         print(f'Root mean squared error: {rmse:.2f}')
 
         # Calculate the coefficient of determination (R^2)
-        r2 = model.score(self.splits["x_val"], self.splits["y_val"])
+        r2 = model.score(self.x_val, self.y_val)
         self.r2_list.append((self.count,r2))
         print(f'R^2: {r2:.2f}')
         self.count+=1
@@ -375,5 +384,5 @@ if __name__ == '__main__':
     print(f"{memory_usage()}{bcolors.OKGREEN}Estimating the test set on {model.selected_model_str}...{bcolors.ENDC}")
     #TODO
     test_df=pd.read_csv("incoming_x_test.csv")
-    asyncio.run(model.predict(test_df)) 
+    #asyncio.run(model.predict(test_df)) 
     print(f"{memory_usage()}{bcolors.FAIL}Done.{bcolors.ENDC}")
