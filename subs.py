@@ -117,7 +117,6 @@ class Subscriber:
 					#print(f"[{time.strftime('%X')}-{split_str[0]}]: Cannot communicate with Publisher!")
 					continue
 
-
 	def parse(self,data):
 		'''Parse incoming data'''
 		value = data[1]  # date value
@@ -134,8 +133,11 @@ class Subscriber:
 			results = await asyncio.gather(self.subAgent("node-1_ActivePower"),
 											self.subAgent("node-2_WindSpeed"),
 											self.subAgent("node-3_WindDir"))
-			if results[0][0][1] == "STOP" and results[1][0][1] == "STOP" and results[2][0][1] == "STOP":
+			
+			if results[0] is None or results[1] is None or results[2] is None:
+				print(f"{bcolors.FAIL}[{time.strftime('%X')}]: Cannot communicate with Publisher!{bcolors.ENDC}")
 				break
+
 			node_1_value = self.parse(results[0][0])
 			node_2_value = self.parse(results[1][0])
 			node_3_value = self.parse(results[2][0])
@@ -148,9 +150,7 @@ class Subscriber:
 
 				# Check if file exist because we want to write to first row
 				# as column names (headers)
-				flag = False
-				if os.path.exists(filename) == False:
-					flag = True
+			
 				
 				'''
 					I am opening and closing each time value incomes. I want to read
@@ -158,8 +158,9 @@ class Subscriber:
 					can't read file because of the lock
 				'''
 				async with aiofiles.open(filename, 'a+', encoding='utf-8') as f:
-					if flag:
-						await f.write(f"Execution time,Date/Time,ActivePower,WindSpeed,WindDir\n")
+					# if file is empty, write headers
+					if os.stat(filename).st_size == 0:
+						await f.write(f"Execution time,DateTime,ActivePower,WindSpeed,WindDir\n")
 					await f.write(f"{time.strftime('%X')},{node_1_value[0]},{node_1_value[1]},{node_2_value[1]},{node_3_value[1]}\n")
 			else: # dates don't match
 				print("Dates don't match")
@@ -191,7 +192,7 @@ class Subscriber:
 async def manage():
 	print("Sending test data to ML Agent...")
 	# Read splitted data
-	with open("splits/x_test.csv","r",encoding="utf-8") as f:
+	with open("x_test.csv","r",encoding="utf-8") as f:
 		x_test = f.readlines()
 	# Send splitted data to ML Agent for prediction
 	ml_agent= await ManagerAgent.create(x_test, "manager", 0.5)
@@ -202,45 +203,41 @@ if __name__ == "__main__":
 		description='Wind Turbine Power Estimation'
 	)
 	parser.add_argument('-p','--predict',nargs='+',help='Predict power for given wind speed and direction')
+	parser.add_argument('-s','--send',action='store_true',help='Send Merged dataset to ML Agent')
 	parser.add_argument('infile', nargs='?',
 		      	type=argparse.FileType('a'),
              	default=sys.stdin,
 		     	help='Input file (default: stdin). Use it if dataset already available.'
 		     	)
-	parser.set_defaults(infile="merged.csv")
+	parser.set_defaults(infile="merged_small.csv")
 	args = parser.parse_args()
-
-	sub=Subscriber()
+	KNOWN_PUBS = ["node-1", "node-2", "node-3"]
+	sub=Subscriber(KNOWN_PUBS=KNOWN_PUBS, DATASET_NAME="merged_small", OUT_DATASET_NAME="T1_merged_small")
 	if len(sys.argv) > 1:
 		# Check if file exist
-		if os.path.exists("merged.csv"):
-			num_lines = sum(1 for line in open('merged.csv'))
+		if os.path.exists("merged_small.csv"):
+			num_lines = sum(1 for line in open('merged_small.csv'))
 			print(f"Dataset num of lines: {bcolors.HEADER}{num_lines}{bcolors.ENDC}")
 			if num_lines < 50000:
-				print("File is missing values!")
-				asyncio.run(sub.main())
+				print("File has missing values!")
+				#asyncio.run(sub.main())
 			else:
 				print("Dataset merged exists")
 				sys.exit(0)
 		else:
 			print("File does not exist! Exiting...")
 			sys.exit(1)
+
+		if args.send:
+			asyncio.run(manage())
+
 	# if no args supplied
 	else:
-		if not os.path.exists("merged.csv"):
-			# Create dataset
-			asyncio.run(sub.main())
+		asyncio.run(sub.main())
+		if not os.path.exists(os.path.join("model_results","ada_boost.sav")):
+			print("start ml_agent first")
+			sys.exit(1)
 		else:
-			# Send splitted data to ML Agent for prediction
-			# Check if folder exist
-			if not os.path.exists(os.path.join("splits","x_test.csv")):
-				print("start ml_agent first")
-				sys.exit(1)
-			else:
-				asyncio.run(manage())
-			
+			asyncio.run(manage())
 
-# Eğer olustuturulan dataset var olup da "split" halleri yoksa onları olustur
-# Eğer olusturulan dataset yoksa olustur
-			
 

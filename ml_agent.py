@@ -1,28 +1,26 @@
-import warnings
-import sys
 import os
+import sys
+import time
 import psutil
 import pickle
-import time
-import argparse
 import asyncio
-import string
+import warnings
+import argparse
 import redis.asyncio as redis
+import csv
 
 import numpy as np
 import pandas as pd
 
-from sklearn.metrics import mean_squared_error, mean_absolute_error
+from sklearn.metrics import mean_squared_error, mean_absolute_error,r2_score
 from sklearn.linear_model import LinearRegression
 from sklearn.tree import DecisionTreeRegressor
-from sklearn.ensemble import RandomForestRegressor 
 from xgboost.sklearn import XGBRegressor
-from sklearn.ensemble import ExtraTreesRegressor
-from sklearn.ensemble import AdaBoostRegressor
-
+from sklearn.ensemble import ExtraTreesRegressor, AdaBoostRegressor, RandomForestRegressor
 from sklearn.model_selection import train_test_split
 
 warnings.filterwarnings('ignore')
+
 
     
 model_results= {
@@ -48,6 +46,7 @@ class bcolors:
 
 class Subscriber:
     def __init__(self):
+        print(f"[{time.strftime('%X')}]: ML AGENT Subscriber created")
         self.results=[]
 
     async def subAgent(self,node: str):
@@ -68,7 +67,7 @@ class Subscriber:
             # subscribe to own channel
             await ps.subscribe(split_str[0])
             # print(f"[{time.strftime('%X')}]: Subscribed to {split_str[0]}")
-            print("Subscribed to {}".format(split_str[0]))
+            # print("Subscribed to {}".format(split_str[0]))
             while True:
                 message = await ps.get_message(ignore_subscribe_messages=True, timeout=3)
                 # if message NOT empty
@@ -114,20 +113,7 @@ class Model:
         self.selected_model = None
         self.selected_model_str = None
 
-        
-        self.splits={
-            "x_train" : pd.DataFrame(),
-            "y_train" : pd.DataFrame(),
-            "x_test"  : pd.DataFrame(),
-            "y_test"  : pd.DataFrame(),
-            "x_val"   : pd.DataFrame(),
-            "y_val"   : pd.DataFrame()
-        } 
-
-        self.dfToCSV()
-        # Run below functions when class is initialized
-        if not os.path.exists('splits'):
-            os.makedirs('splits')
+        self.csvToDF()
 
         Model.lineer_reg(self)
         Model.decision_tree(self)
@@ -136,62 +122,41 @@ class Model:
         Model.extra_trees(self)
         Model.ada_boost(self)
         Model.model_results(self)
+        Model.predict_all(self)
 
-
-            
     def csvToDF(self):
-        # Define the column headers
-        headers = ["Execution time","Date/Time","LV ActivePower","Wind Speed","Theoretical_Power_Curve","Wind Direction"]
         # Read the CSV file into a Pandas dfFrame
-        self.df = pd.read_csv(self.dataset_merged, names=headers, header=0, sep=';')
+        self.df = pd.read_csv(self.dataset_merged,sep=',')
         # Split the date and time into separate columns
-        self.df['Date/Time'] = pd.to_datetime(self.df['Date/Time'])
+        self.df['DateTime'] = pd.to_datetime(self.df['DateTime'])
 
-        self.df['YEAR']   = self.df['Date/Time'].dt.year
-        self.df['MONTH']  = self.df['Date/Time'].dt.month
-        self.df['DAY']    = self.df['Date/Time'].dt.day
-        self.df['hour']   = self.df['Date/Time'].dt.hour
-        self.df['minute'] = self.df['Date/Time'].dt.minute
+        self.df['YEAR']   = self.df["DateTime"].dt.year
+        self.df['MONTH']  = self.df['DateTime'].dt.month
+        self.df['DAY']    = self.df['DateTime'].dt.day
+        self.df['hour']   = self.df['DateTime'].dt.hour
+        self.df['minute'] = self.df['DateTime'].dt.minute
 
-        self.df = self.df.drop(columns=['Date/Time', 'Execution time'])
+        self.df = self.df.drop(columns=['DateTime', 'Execution time'])
 
-        X= self.df.drop(['LV ActivePower'] , axis = 1)
-        y= self.df['LV ActivePower']
+        X= self.df.drop(['ActivePower'] , axis = 1)
+        y= self.df['ActivePower']
 
         # Split into train and test sets (80% train, 20% test)
         self.x_train , self.x_test , self.y_train , self.y_test = train_test_split(X,y, test_size=0.2, train_size=0.8, random_state=42, shuffle=False)
 
         # Split the remaining 20% into validation and test sets (50% each)
         self.x_test , self.x_val , self.y_test , self.y_val = train_test_split(self.x_test, self.y_test, test_size=0.5, random_state=42, shuffle=False)
+        self.x_test.to_csv('x_test.csv', index=False)
         print(self.x_train.shape, self.x_test.shape, self.x_val.shape, self.y_train.shape, self.y_test.shape, self.y_val.shape)
         self.flag=True
-
-    
-    def dfToCSV(self):
-        self.flagg=True
-        if not os.path.exists('splits'):
-            os.makedirs('splits')
-        print('Converting splitted dataframes to csv files...')
-        self.x_train.to_csv('splits/x_train.csv', index=False)
-        self.y_train.to_csv('splits/y_train.csv', index=False)
-        self.x_test .to_csv('splits/x_test.csv' , index=False)
-        self.y_test .to_csv('splits/y_test.csv' , index=False)
-        self.x_val  .to_csv('splits/x_val.csv'  , index=False)
-        self.y_val  .to_csv('splits/y_val.csv'  , index=False)
 
     @classmethod
     def lineer_reg(cls, self):
         print(f"{memory_usage()}Calculating Linear Regression...")
-        if not self.flag:
-            print("1")
-            self.csvToDF()
-        self.dfToCSV()
         self.lineer = LinearRegression()
         if not os.path.exists(model_results["lineer_reg"]): 
-            print("a")
             self.lineer.fit(self.x_train, self.y_train)
         else:
-            print("b")
             self.lineer=pickle.load(open(model_results["lineer_reg"], 'rb'))
         self.calculate_scores(self.lineer)
         pickle.dump(self.lineer, open(model_results["lineer_reg"], 'wb'))
@@ -199,11 +164,6 @@ class Model:
     
     @classmethod
     def decision_tree(cls, self):
-        print(f"{memory_usage()}Calculating Decision Tree...")
-        if not self.flag:
-            self.csvToDF()
-        if not self.flagg:
-            self.dfToCSV()
         self.decision_tree = DecisionTreeRegressor()
         if not os.path.exists(model_results["decision_tree"]): 
             self.decision_tree.fit(self.x_train, self.y_train)
@@ -216,10 +176,6 @@ class Model:
     @classmethod
     def random_forest(cls, self):
         print(f"{memory_usage()}Calculating Random Forest...")
-        if not self.flag:
-            self.csvToDF()
-        if not self.flagg:
-            self.dfToCSV()
         self.random_forest = RandomForestRegressor()
         if not os.path.exists(model_results["random_forest"]): 
             self.random_forest.fit(self.x_train, self.y_train)
@@ -232,10 +188,6 @@ class Model:
     @classmethod
     def xg_boost(cls, self):
         print(f"{memory_usage()}Calculating XG Boost...")
-        if not self.flag:
-            self.csvToDF()
-        if not self.flagg:
-            self.dfToCSV()
         self.xg_boost = XGBRegressor()
         if not os.path.exists(model_results["xg_boost"]): 
             self.xg_boost.fit(self.x_train, self.y_train)
@@ -249,10 +201,6 @@ class Model:
     @classmethod
     def extra_trees(cls, self):
         print(f"{memory_usage()}Calculating Extra Trees...")
-        if not self.flag:
-            self.csvToDF()
-        if not self.flagg:
-            self.dfToCSV()
         self.extra_trees = ExtraTreesRegressor()
         if not os.path.exists(model_results["extra_trees"]): 
             self.extra_trees.fit(self.x_train, self.y_train)
@@ -265,10 +213,6 @@ class Model:
     @classmethod
     def ada_boost(cls, self):
         print(f"{memory_usage()}Calculating Ada Boost...")
-        if not self.flag:
-            self.csvToDF()
-        if not self.flagg:
-            self.dfToCSV()
         self.ada_boost = AdaBoostRegressor()
         if not os.path.exists(model_results["ada_boost"]): 
             self.ada_boost.fit(self.x_train, self.y_train)
@@ -302,15 +246,13 @@ class Model:
         self.count+=1
 
     def model_results(self):
-        dataset_merged   = 'merged.csv'
-        dataset_exist    = os.path.exists(os.path.join(os.getcwd(), dataset_merged))
+        dataset_exist    = os.path.exists(os.path.join(os.getcwd(), self.dataset_merged))
 
         if dataset_exist:
             print(f'{memory_usage()} {dataset_merged} exists')
         else:
             print(f'{bcolors.FAIL}{memory_usage()} {dataset_merged} does not exist. Supply the file and try again.{bcolors.ENDC}')
             sys.exit(1)
-
 
         self.mae_list .sort(key=lambda x: x[1]) 
         self.mse_list .sort(key=lambda x: x[1]) 
@@ -326,22 +268,36 @@ class Model:
         print(f"{memory_usage()}{bcolors.WARNING} Best algorithm based on RMSE is {list(model_results.items())[self.rmse_list[0][0]][0]}.{bcolors.ENDC}")
         print(f"{memory_usage()}{bcolors.WARNING} Best algorithm based on R^2  is {list(model_results.items())[self.r2_list[0][0]][0]}.  {bcolors.ENDC}")
         
-        print("")
+        print()
         # Selecting the best model
         self.selected_model_str = list(model_results.items())[self.r2_list[0][0]][0]
         print(f"{memory_usage()}{bcolors.OKBLUE} {self.selected_model_str} is selected.{bcolors.ENDC}")
         self.selected_model=pickle.load(open(model_results[self.selected_model_str], 'rb'))
         del self.mae_list,self.mse_list,self.rmse_list,self.r2_list
 
-    async def predict(self,value):
-        y_pred=self.selected_model.predict(value)
-        mse = mean_squared_error(model.splits["y_test"], y_pred)
-        rmse = np.sqrt(mse)
-        r2 = self.selected_model.score(model.splits["x_test"], model.splits["y_test"])
-        print(f"{memory_usage()} Mean squared error: {mse:.2f}")
-        print(f"{memory_usage()} Root mean squared error: {rmse:.2f}")
-        print(f"{memory_usage()} R^2: {r2:.2f}")
+    def my_predict(self,value,model):
+        with open(model, 'rb') as pickle_file:
+            model = pickle.load(pickle_file)
+        #print(model)
+        y_pred=model.predict(value)
         return y_pred
+    
+    # Predict all regression models
+    def predict_all(self):
+        if not os.path.exists("Predictions"):
+            os.makedirs("Predictions")
+        predict_linear=self.my_predict(self.x_val, model_results["lineer_reg"])
+        np.savetxt(f"Predictions/predict_linear.csv", predict_linear, delimiter=",",fmt='%.2f')
+        predict_decision_tree=self.my_predict(self.x_val, model_results["decision_tree"])
+        np.savetxt(f"Predictions/predict_decision_tree.csv", predict_decision_tree, delimiter=",",fmt='%.2f')
+        predict_random_forest=self.my_predict(self.x_val, model_results["random_forest"])
+        np.savetxt(f"Predictions/predict_random_forest.csv", predict_random_forest, delimiter=",",fmt='%.2f')
+        predict_xgboost=self.my_predict(self.x_val, model_results["xg_boost"])
+        np.savetxt(f"Predictions/predict_xgboost.csv", predict_xgboost, delimiter=",",fmt='%.2f')
+        predict_extra_trees=self.my_predict(self.x_val, model_results["extra_trees"])
+        np.savetxt(f"Predictions/predict_extra_trees.csv", predict_extra_trees, delimiter=",",fmt='%.2f')
+        predict_ada=self.my_predict(self.x_val, model_results["ada_boost"])
+        np.savetxt(f"Predictions/predict_ada.csv", predict_ada, delimiter=",",fmt='%.2f')
 
 def memory_usage():
     # return the memory usage in MB
@@ -352,37 +308,58 @@ def memory_usage():
 async def main():
     global result_list
     result_list = []
+    count=0
     while True:
         results = await asyncio.gather(sub.subAgent("manager"))
         if results[0] is None:
             print("EOF")
             break
         else:
-            print("RESULT: "+str(results[0]))
-            result_list.append(results[0])
+            results_list=results[0][1].split(",")
+            results_list[-1] = results_list[-1].strip()
+            columns=['WindSpeed', 'WindDir', 'YEAR', 'MONTH', 'DAY', 'hour', 'minute']
+            df_r=pd.DataFrame([results_list], columns=columns)
+
+            if count!=0:
+                for column in columns:
+                    df_r[column] = df_r[column].astype(float)
+                print(df_r)
+                # reshape input data for prediction
+                df_r = df_r.values.reshape(1, -1)
+                model=Model(dataset_merged=dataset_merged)
+                pred=model.my_predict(df_r,model_results[model.selected_model_str])
+                print("ActivePower (kW) Prediction: " + str(pred[0]))
+                with open('Predictions/realtime_pred.csv', 'a+', encoding='utf-8') as f:
+                    f.write(f"{pred[0]},\n")
+                
+            result_list.append(str(results[0][1]).replace("\n",""))
+            with open('incoming_x_test.csv', 'a+', encoding='utf-8') as f:
+                f.write(f"{results[0][1]}")
+        count += 1
     print("Dosya Bitti")
-    print("RESULT LİST: "+str(result_list))
+
+
 
 if __name__ == '__main__':
     if not os.path.exists('model_results'):
         os.makedirs('model_results')
-    dataset_merged = 'merged.csv'
+    dataset_merged = 'merged_small.csv'
 
-    model=Model(dataset_merged=dataset_merged)
-    sub=Subscriber()
-    loop = asyncio.get_event_loop()
-    try:
-        loop.run_until_complete(main())
-    finally:
-        loop.close()
-    print(result_list[0])
-    with open("incoming_x_test.csv","w",encoding="utf-8") as f:
-        for i in result_list:
-            i=list(i)
-            f.writelines(str(i[1]))
-    ############# TEST ESTIMATION BEGINS ###############
-    print(f"{memory_usage()}{bcolors.OKGREEN}Estimating the test set on {model.selected_model_str}...{bcolors.ENDC}")
-    #TODO
-    test_df=pd.read_csv("incoming_x_test.csv")
-    #asyncio.run(model.predict(test_df)) 
-    print(f"{memory_usage()}{bcolors.FAIL}Done.{bcolors.ENDC}")
+    parser=argparse.ArgumentParser(
+		prog='PubSub Term',
+		description='Wind Turbine Power Estimation'
+	)
+    parser.add_argument('-c','--contact',action='store_true',help='Take dataset from Manager Agent')
+    parser.add_argument('-t','--train',action='store_true',help='Trains models based on the dataset and sends the results to Manager Agent')
+    
+    if parser.parse_args().contact:
+        sub=Subscriber()
+        loop = asyncio.get_event_loop()
+        try:
+            loop.run_until_complete(main())
+        finally:
+            loop.close()
+    elif parser.parse_args().train:
+        model=Model(dataset_merged=dataset_merged)
+
+
